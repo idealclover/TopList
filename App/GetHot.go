@@ -1,23 +1,25 @@
 package main
 
 import (
-	"github.com/tophubs/TopList/Common"
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/PuerkitoBio/goquery"
-	"github.com/bitly/go-simplejson"
-	"golang.org/x/text/encoding/simplifiedchinese"
-	"golang.org/x/text/transform"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
+	uUrl "net/url"
 	"reflect"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/tophubs/TopList/Common"
+
+	"github.com/PuerkitoBio/goquery"
+	"github.com/bitly/go-simplejson"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
 
 type HotData struct {
@@ -120,15 +122,16 @@ func (spider Spider) GetZhiHu() []map[string]interface{} {
 	client := &http.Client{
 		Timeout: timeout,
 	}
-	url := "https://www.zhihu.com/hot"
+	url := "https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total?limit=50"
+	//url := "https://www.zhihu.com/hot"
 	var Body io.Reader
 	request, err := http.NewRequest("GET", url, Body)
 	if err != nil {
 		fmt.Println("抓取" + spider.DataType + "失败")
 		return []map[string]interface{}{}
 	}
-	request.Header.Add("Cookie", `_zap=09ee8132-fd2b-43d3-9562-9d53a41a4ef5; d_c0="AGDv-acVoQ-PTvS01pG8OiR9v_9niR11ukg=|1561288241"; capsion_ticket="2|1:0|10:1561288248|14:capsion_ticket|44:NjE1ZTMxMjcxYjlhNGJkMjk5OGU4NTRlNDdkZTJhNzk=|7aefc35b3dfd27b74a087dd1d15e7a6bb9bf5c6cdbe8471bc20008feb67e7a9f"; z_c0="2|1:0|10:1561288250|4:z_c0|92:Mi4xeGZsekFBQUFBQUFBWU9fNXB4V2hEeVlBQUFCZ0FsVk5PcXo4WFFBNWFFRnhYX2h0ZFZpWTQ5T3dDMGh5ZTV1bjB3|0cee5ae41ff7053a1e39d96df2450077d37cc9924b337584cf006028b0a02f30"; q_c1=ae65e92b2bbf49e58dee5b2b29e1ffb3|1561288383000|1561288383000; tgw_l7_route=f2979fdd289e2265b2f12e4f4a478330; _xsrf=f8139fd6-b026-4f01-b860-fe219aa63543; tst=h; tshl=`)
-	request.Header.Add("User-Agent", `Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Mobile Safari/537.36`)
+	//request.Header.Add("Cookie", `_zap=09ee8132-fd2b-43d3-9562-9d53a41a4ef5; d_c0="AGDv-acVoQ-PTvS01pG8OiR9v_9niR11ukg=|1561288241"; capsion_ticket="2|1:0|10:1561288248|14:capsion_ticket|44:NjE1ZTMxMjcxYjlhNGJkMjk5OGU4NTRlNDdkZTJhNzk=|7aefc35b3dfd27b74a087dd1d15e7a6bb9bf5c6cdbe8471bc20008feb67e7a9f"; z_c0="2|1:0|10:1561288250|4:z_c0|92:Mi4xeGZsekFBQUFBQUFBWU9fNXB4V2hEeVlBQUFCZ0FsVk5PcXo4WFFBNWFFRnhYX2h0ZFZpWTQ5T3dDMGh5ZTV1bjB3|0cee5ae41ff7053a1e39d96df2450077d37cc9924b337584cf006028b0a02f30"; q_c1=ae65e92b2bbf49e58dee5b2b29e1ffb3|1561288383000|1561288383000; tgw_l7_route=f2979fdd289e2265b2f12e4f4a478330; _xsrf=f8139fd6-b026-4f01-b860-fe219aa63543; tst=h; tshl=`)
+	//request.Header.Add("User-Agent", `Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Mobile Safari/537.36`)
 
 	res, err := client.Do(request)
 	if err != nil {
@@ -136,25 +139,38 @@ func (spider Spider) GetZhiHu() []map[string]interface{} {
 		return []map[string]interface{}{}
 	}
 	defer res.Body.Close()
-	var allData []map[string]interface{}
-	document, err := goquery.NewDocumentFromReader(res.Body)
-	if err != nil {
+	str, _ := ioutil.ReadAll(res.Body)
+	js, err2 := simplejson.NewJson(str)
+	if err2 != nil {
 		fmt.Println("抓取" + spider.DataType + "失败")
 		return []map[string]interface{}{}
 	}
-	document.Find(".HotList-list .HotItem-content").Each(func(i int, selection *goquery.Selection) {
-		url, boolUrl := selection.Find("a").Attr("href")
-		text := selection.Find("h2").Text()
-		if boolUrl {
-			allData = append(allData, map[string]interface{}{"title": text, "url": url})
-		}
-	})
+	var allData []map[string]interface{}
+	i := 0
+	for i < 50 {
+		test := js.Get("data").GetIndex(i).MustMap()
+		allData = append(allData, map[string]interface{}{"title": test["target"].(map[string]interface{})["title"], "url": test["target"].(map[string]interface{})["url"], "desc": test["detail_text"], "pic": test["children"].([]interface{})[0].(map[string]interface{})["thumbnail"]})
+		i++
+	}
+	//document, err := goquery.NewDocumentFromReader(res.Body)
+	//if err != nil {
+	//	fmt.Println("抓取" + spider.DataType + "失败")
+	//	return []map[string]interface{}{}
+	//}
+	//document.Find(".HotList-list .HotItem-content").Each(func(i int, selection *goquery.Selection) {
+	//	url, boolUrl := selection.Find("a").Attr("href")
+	//	text := selection.Find("h2").Text()
+	//	if boolUrl {
+	//		allData = append(allData, map[string]interface{}{"title": text, "url": url})
+	//	}
+	//})
 	return allData
 }
 
 // 微博
 func (spider Spider) GetWeiBo() []map[string]interface{} {
-	url := "https://s.weibo.com/top/summary"
+	url := "https://weibo.com/ajax/statuses/hot_band"
+	//url := "https://s.weibo.com/top/summary"
 	timeout := time.Duration(5 * time.Second) //超时时间5s
 	client := &http.Client{
 		Timeout: timeout,
@@ -165,7 +181,7 @@ func (spider Spider) GetWeiBo() []map[string]interface{} {
 		fmt.Println("抓取" + spider.DataType + "失败")
 		return []map[string]interface{}{}
 	}
-	request.Header.Add("User-Agent", `Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Mobile Safari/537.36`)
+	//request.Header.Add("User-Agent", `Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Mobile Safari/537.36`)
 	res, err := client.Do(request)
 
 	if err != nil {
@@ -175,23 +191,55 @@ func (spider Spider) GetWeiBo() []map[string]interface{} {
 	defer res.Body.Close()
 	//str, _ := ioutil.ReadAll(res.Body)
 	//fmt.Println(string(str))
-	var allData []map[string]interface{}
-	document, err := goquery.NewDocumentFromReader(res.Body)
-	if err != nil {
+	str, _ := ioutil.ReadAll(res.Body)
+	js, err2 := simplejson.NewJson(str)
+	if err2 != nil {
 		fmt.Println("抓取" + spider.DataType + "失败")
 		return []map[string]interface{}{}
 	}
-	document.Find(".list_a li").Each(func(i int, selection *goquery.Selection) {
-		url, boolUrl := selection.Find("a").Attr("href")
-		text := selection.Find("a span").Text()
-		textLock := selection.Find("a em").Text()
-		text = strings.Replace(text, textLock, "", -1)
-		if boolUrl {
-			allData = append(allData, map[string]interface{}{"title": text, "url": "https://s.weibo.com" + url})
+	var allData []map[string]interface{}
+	i := 0
+	for i < 50 {
+		test := js.Get("data").Get("band_list").GetIndex(i).MustMap()
+		var pic = ""
+		mblog, ok := test["mblog"].(map[string]interface{})
+		if !ok {
+			mblog = map[string]interface{}{}
 		}
-	})
-	return allData[1:]
-
+		pics, ok := mblog["pic_ids"].([]interface{})
+		if !ok {
+			pics = []interface{}{}
+		}
+		if len(pics) > 0 {
+			pic = "https://wx1.sinaimg.cn/orj360/" + pics[0].(string) + ".jpg"
+		}
+		is_ad, ok := test["is_ad"].(json.Number)
+		if !ok {
+			is_ad = "0"
+		}
+		if is_ad.String() != "0" {
+			i++
+			continue
+		}
+		allData = append(allData, map[string]interface{}{"title": test["note"], "url": "https://s.weibo.com/weibo?q=" + uUrl.QueryEscape(test["word_scheme"].(string)), "desc": string(test["raw_hot"].(json.Number)) + " 热度", "pic": pic})
+		i++
+	}
+	return allData
+	//document, err := goquery.NewDocumentFromReader(res.Body)
+	//if err != nil {
+	//	fmt.Println("抓取" + spider.DataType + "失败")
+	//	return []map[string]interface{}{}
+	//}
+	//document.Find(".list_a li").Each(func(i int, selection *goquery.Selection) {
+	//	url, boolUrl := selection.Find("a").Attr("href")
+	//	text := selection.Find("a span").Text()
+	//	textLock := selection.Find("a em").Text()
+	//	text = strings.Replace(text, textLock, "", -1)
+	//	if boolUrl {
+	//		allData = append(allData, map[string]interface{}{"title": text, "url": "https://s.weibo.com" + url})
+	//	}
+	//})
+	//return allData[1:]
 }
 
 // 贴吧
@@ -1365,6 +1413,7 @@ func ExecGetData(spider Spider) {
 	data := dataType.Call(nil)
 	originData := data[0].Interface().([]map[string]interface{})
 	start := time.Now()
+	//fmt.Printf(SaveDataToJson(originData))
 	Common.MySql{}.GetConn().Where(map[string]string{"dataType": spider.DataType}).Update("hotData2", map[string]string{"str": SaveDataToJson(originData)})
 	group.Done()
 	seconds := time.Since(start).Seconds()
@@ -1377,32 +1426,34 @@ var group sync.WaitGroup
 
 func main() {
 	allData := []string{
-		"V2EX",
+		// Done
 		"ZhiHu",
 		"WeiBo",
-		"TieBa",
-		"DouBan",
-		"TianYa",
-		"HuPu",
-		"GitHub",
-		"BaiDu",
-		"36Kr",
-		"QDaily",
-		"GuoKr",
-		"HuXiu",
-		"ZHDaily",
-		"Segmentfault",
-		"WYNews",
-		"WaterAndWood",
-		"HacPai",
-		"KD",
-		"NGA",
-		"WeiXin",
-		"Mop",
-		"Chiphell",
-		"JianDan",
-		"ChouTi",
-		"ITHome",
+
+		//"V2EX",
+		//"TieBa",
+		//"DouBan",
+		//"TianYa",
+		//"HuPu",
+		//"GitHub",
+		//"BaiDu",
+		//"36Kr",
+		//"QDaily",
+		//"GuoKr",
+		//"HuXiu",
+		//"ZHDaily",
+		//"Segmentfault",
+		//"WYNews",
+		//"WaterAndWood",
+		//"HacPai",
+		//"KD",
+		//"NGA",
+		//"WeiXin",
+		//"Mop",
+		//"Chiphell",
+		//"JianDan",
+		//"ChouTi",
+		//"ITHome",
 	}
 	fmt.Println("开始抓取" + strconv.Itoa(len(allData)) + "种数据类型")
 	group.Add(len(allData))

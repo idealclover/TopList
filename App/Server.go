@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"regexp"
 	"text/template"
+
 	"github.com/tophubs/TopList/Common"
 	"github.com/tophubs/TopList/Config"
 )
@@ -33,6 +35,56 @@ func GetType(w http.ResponseWriter, r *http.Request) {
 	Common.Message{}.Success("获取数据成功", res, w)
 }
 
+func GetAvailableType(w http.ResponseWriter, r *http.Request) {
+	input := `
+{
+	"data": [
+		{
+			"name": "知乎",
+			"type": "zhihu",
+			"id": "1",
+			"appid": "wxeb39b10e39bf6b54",
+			"re": "\\d+",
+			"prepath": "zhihu/question?id=",
+			"sufpath": "&source=recommend"
+		},
+		{
+			"name": "微博",
+			"type": "weibo",
+			"id": "58",
+			"appid": "wx9074de28009e1111",
+			"re": "#(.+?)#",
+			"prepath": "pages/topic/topic?topicContent=",
+			"sufpath": ""
+		}
+	]
+}
+	`
+	var res map[string]interface{}
+	json.Unmarshal([]byte(input), &res)
+	// },
+	// {
+	// 	"name": "微信",
+	// 	"type": "weixin"
+	// },
+	// {
+	// 	"name": "哔哩",
+	// 	"type": "bilibili",
+	// 	"appid": "wx7564fd5313d24844",
+	// 	"re": "\\d+",
+	// 	"prepath": "pages/video/video?avid=",
+	// 	"sufpath": ""
+	// },
+	// {
+	// 	"name": "v2ex",
+	// 	"type": "v2ex",
+	// 	"appid": "wx3f56c5b9471bde01",
+	// 	"re": "\\d{2,}",
+	// 	"prepath": "pages/Detail?id=",
+	// 	"sufpath": ""
+	Common.Message{}.Success("获取数据成功", res, w)
+}
+
 func GetConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Access-Control-Allow-Origin", "*")
 	fmt.Fprintf(w, "%s", Config.MySql().Source)
@@ -55,9 +107,10 @@ kill -SIGUSR1 PID 可平滑重新读取mysql配置
 
 func main() {
 	//SyncMysqlCfg()
-	http.HandleFunc("/GetTypeInfo", GetTypeInfo) // 设置访问的路由
-	http.HandleFunc("/GetType", GetType)         // 设置访问的路由
-	http.HandleFunc("/GetConfig", GetConfig)     // 设置访问的路由
+	http.HandleFunc("/GetTypeInfo", GetTypeInfo)           // 设置访问的路由
+	http.HandleFunc("/GetType", GetType)                   // 设置访问的路由
+	http.HandleFunc("/GetAvailableType", GetAvailableType) // 设置访问的路由
+	//http.HandleFunc("/GetConfig", GetConfig)      // 设置访问的路由
 
 	// 静态资源
 	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir("../Html/css/"))))
