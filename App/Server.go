@@ -3,13 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/tophubs/TopList/Common"
 	"log"
 	"net/http"
 	"regexp"
-	"text/template"
-
-	"github.com/tophubs/TopList/Common"
-	"github.com/tophubs/TopList/Config"
 )
 
 func GetTypeInfo(w http.ResponseWriter, r *http.Request) {
@@ -27,17 +24,20 @@ func GetTypeInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Add("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, "%s", data[0]["str"])
 }
 
 func GetType(w http.ResponseWriter, r *http.Request) {
 	res := Common.MySql{}.GetConn().Select("hotData2", []string{"name", "id"}).QueryAll()
+	w.Header().Set("Content-Type", "application/json")
 	Common.Message{}.Success("获取数据成功", res, w)
 }
 
 func GetAvailableType(w http.ResponseWriter, r *http.Request) {
 	input := `
 {
+	"mode": "production",
 	"data": [
 		{
 			"name": "知乎",
@@ -56,6 +56,38 @@ func GetAvailableType(w http.ResponseWriter, r *http.Request) {
 			"re": "#(.+?)#",
 			"prepath": "pages/topic/topic?topicContent=",
 			"sufpath": ""
+		},
+		{
+			"name": "哔哩",
+			"type": "bilibili",
+			"id": "5",
+			"appid": "wx7564fd5313d24844",
+			"re": "\\d+",
+			"prepath": "pages/video/video?avid=",
+			"sufpath": ""
+		},
+	    {
+			"name": "v2ex",
+			"type": "v2ex",
+			"id": "59",
+			"appid": "wx3f56c5b9471bde01",
+			"re": "\\d{2,}",
+			"prepath": "pages/Detail?id=",
+			"sufpath": ""
+		},
+	    {
+			"name": "36Kr",
+			"type": "36Kr",
+			"id": "12"
+		},
+	    {
+			"name": "虎嗅",
+			"type": "HuXiu",
+			"id": "8",
+			"appid": "wxd1f72ce26251f419",
+			"re": "\\d+",
+			"prepath": "pages/article?aid=",
+			"sufpath": ""
 		}
 	]
 }
@@ -67,49 +99,51 @@ func GetAvailableType(w http.ResponseWriter, r *http.Request) {
 	// 	"name": "微信",
 	// 	"type": "weixin"
 	// },
-	// {
-	// 	"name": "哔哩",
-	// 	"type": "bilibili",
-	// 	"appid": "wx7564fd5313d24844",
-	// 	"re": "\\d+",
-	// 	"prepath": "pages/video/video?avid=",
-	// 	"sufpath": ""
-	// },
-	// {
-	// 	"name": "v2ex",
-	// 	"type": "v2ex",
-	// 	"appid": "wx3f56c5b9471bde01",
-	// 	"re": "\\d{2,}",
-	// 	"prepath": "pages/Detail?id=",
-	// 	"sufpath": ""
+	w.Header().Set("Content-Type", "application/json")
 	Common.Message{}.Success("获取数据成功", res, w)
 }
 
-func GetConfig(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Access-Control-Allow-Origin", "*")
-	fmt.Fprintf(w, "%s", Config.MySql().Source)
+func GetMockAvailableType(w http.ResponseWriter, r *http.Request) {
+	input := `
+{
+	"mode": "dev",
+	"data": [
+		{
+			"name": "随想",
+			"type": "SuiXiang",
+			"id": "201"
+		},
+		{
+			"name": "技术",
+			"type": "JiShu",
+			"id": "202"
+		},
+	    {
+			"name": "生活",
+			"type": "ShengHuo",
+			"id": "203"
+		},
+	    {
+			"name": "测评",
+			"type": "CePing",
+			"id": "204"
+		}
+	]
 }
-
-/**
-kill -SIGUSR1 PID 可平滑重新读取mysql配置
-*/
-//func SyncMysqlCfg() {
-//	s := make(chan os.Signal, 1)
-//	signal.Notify(s, syscall.SIGUSR1)
-//	go func() {
-//		for {
-//			<-s
-//			Config.ReloadConfig()
-//			log.Println("Reloaded config")
-//		}
-//	}()
-//}
+	`
+	var res map[string]interface{}
+	json.Unmarshal([]byte(input), &res)
+	w.Header().Set("Content-Type", "application/json")
+	Common.Message{}.Success("获取数据成功", res, w)
+}
 
 func main() {
 	//SyncMysqlCfg()
-	http.HandleFunc("/GetTypeInfo", GetTypeInfo)           // 设置访问的路由
-	http.HandleFunc("/GetType", GetType)                   // 设置访问的路由
-	http.HandleFunc("/GetAvailableType", GetAvailableType) // 设置访问的路由
+	http.HandleFunc("/GetTypeInfo", GetTypeInfo)                 // 设置访问的路由
+	http.HandleFunc("/GetType", GetType)                         // 设置访问的路由
+	http.HandleFunc("/GetAvailableType", GetAvailableType)       // 设置访问的路由
+	http.HandleFunc("/GetAvailableType/1", GetAvailableType)     // 设置访问的路由
+	http.HandleFunc("/GetAvailableType/2", GetMockAvailableType) // 设置访问的路由
 	//http.HandleFunc("/GetConfig", GetConfig)      // 设置访问的路由
 
 	// 静态资源
@@ -117,13 +151,13 @@ func main() {
 	http.Handle("/js/", http.StripPrefix("/js/", http.FileServer(http.Dir("../Html/js/"))))
 
 	// 首页
-	http.HandleFunc("/", func(res http.ResponseWriter, req *http.Request) {
-		t, err := template.ParseFiles("../Html/hot.html")
-		if err != nil {
-			log.Println("err")
-		}
-		t.Execute(res, nil)
-	})
+	//http.HandleFunc("/", func(res http.ResponseWriter, req *http.Request) {
+	//	t, err := template.ParseFiles("../Html/hot.html")
+	//	if err != nil {
+	//		log.Println("err")
+	//	}
+	//	t.Execute(res, nil)
+	//})
 
 	err := http.ListenAndServe(":9090", nil) // 设置监听的端口
 	if err != nil {
