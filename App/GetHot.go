@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/tophubs/TopList/Common"
 	"io"
 	"io/ioutil"
 	"log"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/bitly/go-simplejson"
+	"github.com/tophubs/TopList/Common"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
 )
@@ -302,8 +302,9 @@ func (spider Spider) Get36Kr() []map[string]interface{} {
 		url, boolUrl := s.Attr("href")
 		text := selection.Find("a p").Text()
 		//TODO: 36kr 的题图
-		//img := selection.Find("img")
-		//println(img2)
+		// p := selection.Find("a img")
+		// pic, _ := p.Attr("alt")
+		// println(pic)
 		if boolUrl {
 			allData = append(allData, map[string]interface{}{
 				"id":    strings.Replace(url, "/p/", "", -1),
@@ -315,6 +316,9 @@ func (spider Spider) Get36Kr() []map[string]interface{} {
 		s := selection.Find("a").First()
 		url, boolUrl := s.Attr("href")
 		text := s.Text()
+		// p := selection.Find("a img")
+		// pic, _ := p.Attr("src")
+		// println(pic)
 		if boolUrl {
 			allData = append(allData, map[string]interface{}{
 				"id":    strings.Replace(url, "/p/", "", -1),
@@ -378,8 +382,9 @@ func (spider Spider) GetHuXiu() []map[string]interface{} {
 	document.Find(".article-item--normal").Each(func(i int, selection *goquery.Selection) {
 		s := selection.Find("a").First()
 		url, boolUrl := s.Attr("href")
-		//img := selection.Find("img").First()
-		//pic, _ := img.Attr("data-src")
+		// p := selection.Find("img").First()
+		// pic, _ := p.Attr("alt")
+		// println(pic)
 		text := s.Find("h5").Text()
 		if len(text) != 0 {
 			if boolUrl {
@@ -392,6 +397,54 @@ func (spider Spider) GetHuXiu() []map[string]interface{} {
 			}
 		}
 	})
+	return allData
+}
+
+// GetSMZDM 什么值得买
+func (spider Spider) GetSMZDM() []map[string]interface{} {
+	// 基础设置
+	timeout := 5 * time.Second //超时时间5s
+	client := &http.Client{
+		Timeout: timeout,
+	}
+	// 请求网络
+	url := "https://www.smzdm.com/top/json_more?rank_type=haowen&rank_id=yc"
+	var Body io.Reader
+	request, err := http.NewRequest("GET", url, Body)
+	if err != nil {
+		fmt.Println("抓取" + spider.DataType + "失败")
+		return []map[string]interface{}{}
+	}
+	res, err := client.Do(request)
+	if err != nil {
+		fmt.Println("抓取" + spider.DataType + "失败")
+		return []map[string]interface{}{}
+	}
+	defer res.Body.Close()
+	//解析数据
+	str, _ := ioutil.ReadAll(res.Body)
+	js, err := simplejson.NewJson(str)
+	if err != nil {
+		fmt.Println("抓取" + spider.DataType + "失败")
+		return []map[string]interface{}{}
+	}
+	// 装填数据
+	var allData []map[string]interface{}
+	lens := len(js.Get("data").Get("list").MustArray())
+	for i := 0; i < lens; i++ {
+		item := js.Get("data").Get("list").GetIndex(i).GetIndex(0).MustMap()
+		id := item["article_id"]
+		title := item["article_title"]
+		rUrl := item["article_url"]
+		desc := item["article_love_count"].(string) + " 喜欢"
+		pic := item["article_pic"]
+		allData = append(allData, map[string]interface{}{
+			"id":    id,
+			"title": title,
+			"url":   rUrl,
+			"desc":  desc,
+			"pic":   pic})
+	}
 	return allData
 }
 
@@ -1155,9 +1208,13 @@ func (spider Spider) GetNGA() []map[string]interface{} {
 		url, boolUrl := s.Attr("href")
 		text := s.Text()
 		if len(text) != 0 {
+			id := url[len(url)-8:]
 			if boolUrl {
 				if len(allData) <= 100 {
-					allData = append(allData, map[string]interface{}{"title": string(text), "url": url})
+					allData = append(allData, map[string]interface{}{
+						"id":    id,
+						"title": string(text),
+						"url":   url})
 				}
 			}
 		}
@@ -1243,10 +1300,17 @@ func (spider Spider) GetWeiXin() []map[string]interface{} {
 		s := selection.Find("h3 a").First()
 		url, boolUrl := s.Attr("href")
 		text := s.Text()
+		p := selection.Find("a img").First()
+		pic, _ := p.Attr("src")
 		if len(text) != 0 {
 			if boolUrl {
 				if len(allData) <= 100 {
-					allData = append(allData, map[string]interface{}{"title": string(text), "url": url})
+					allData = append(allData, map[string]interface{}{
+						"id":    string(text),
+						"title": string(text),
+						"url":   url,
+						"pic":   "http:" + pic,
+					})
 				}
 			}
 		}
@@ -1589,11 +1653,12 @@ func ExecGetData(spider Spider) {
 	data := dataType.Call(nil)
 	originData := data[0].Interface().([]map[string]interface{})
 	start := time.Now()
-	//fmt.Printf(SaveDataToJson(originData))
+	// SaveDataToJson(originData)
+	// fmt.Printf(SaveDataToJson(originData))
 	Common.MySql{}.GetConn().Where(map[string]string{"dataType": spider.DataType}).Update("hotData2", map[string]string{"str": SaveDataToJson(originData)})
 	group.Done()
 	seconds := time.Since(start).Seconds()
-	fmt.Printf("耗费 %.2fs 秒完成抓取%s", seconds, spider.DataType)
+	fmt.Printf("\n耗费 %.2fs 秒完成抓取%s\n", seconds, spider.DataType)
 	fmt.Println()
 
 }
@@ -1608,6 +1673,9 @@ func main() {
 		"V2EX",
 		"36Kr",
 		"HuXiu",
+		"WeiXin",
+		"SMZDM",
+		"NGA",
 
 		"SuiXiang",
 		"JiShu",
@@ -1619,7 +1687,7 @@ func main() {
 		//"TianYa",
 		//"HuPu",
 		//"GitHub",
-		//"BaiDu",
+		// "BaiDu",
 		//"QDaily",
 		//"GuoKr",
 		//"ZHDaily",
@@ -1628,8 +1696,6 @@ func main() {
 		//"WaterAndWood",
 		//"HacPai",
 		//"KD",
-		//"NGA",
-		//"WeiXin",
 		//"Mop",
 		//"Chiphell",
 		//"JianDan",

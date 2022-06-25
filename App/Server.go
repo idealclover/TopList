@@ -3,10 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/tophubs/TopList/Common"
 	"log"
 	"net/http"
 	"regexp"
+
+	"github.com/tophubs/TopList/Common"
 )
 
 func GetTypeInfo(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +47,10 @@ func GetAvailableType(w http.ResponseWriter, r *http.Request) {
 			"appid": "wxeb39b10e39bf6b54",
 			"re": "\\d+",
 			"prepath": "zhihu/question?id=",
-			"sufpath": "&source=recommend"
+			"sufpath": "&source=recommend",
+			"scheme": "zhihu",
+			"scheme_prepath": "question/",
+			"scheme_sufpath": ""
 		},
 		{
 			"name": "微博",
@@ -60,11 +64,7 @@ func GetAvailableType(w http.ResponseWriter, r *http.Request) {
 		{
 			"name": "哔哩",
 			"type": "bilibili",
-			"id": "5",
-			"appid": "wx7564fd5313d24844",
-			"re": "\\d+",
-			"prepath": "pages/video/video?avid=",
-			"sufpath": ""
+			"id": "5"
 		},
 	    {
 			"name": "v2ex",
@@ -88,6 +88,21 @@ func GetAvailableType(w http.ResponseWriter, r *http.Request) {
 			"re": "\\d+",
 			"prepath": "pages/article?aid=",
 			"sufpath": ""
+		},
+		{
+			"name": "微信",
+			"type": "WeiXin",
+			"id": "11"
+		},
+		{
+			"name": "什么值得买",
+			"type": "SMZDM",
+			"id": "64"
+		},
+		{
+			"name": "NGA",
+			"type": "NGA",
+			"id": "63"
 		}
 	]
 }
@@ -139,11 +154,12 @@ func GetMockAvailableType(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	//SyncMysqlCfg()
-	http.HandleFunc("/GetTypeInfo", GetTypeInfo)                 // 设置访问的路由
-	http.HandleFunc("/GetType", GetType)                         // 设置访问的路由
-	http.HandleFunc("/GetAvailableType", GetAvailableType)       // 设置访问的路由
-	http.HandleFunc("/GetAvailableType/1", GetAvailableType)     // 设置访问的路由
-	http.HandleFunc("/GetAvailableType/2", GetMockAvailableType) // 设置访问的路由
+	http.HandleFunc("/GetTypeInfo", GetTypeInfo)             // 设置访问的路由
+	http.HandleFunc("/GetType", GetType)                     // 设置访问的路由
+	http.HandleFunc("/GetAvailableType", GetAvailableType)   // 设置访问的路由
+	http.HandleFunc("/GetAvailableType/1", GetAvailableType) // 设置访问的路由
+	// http.HandleFunc("/GetAvailableType/2", GetMockAvailableType) // 设置访问的路由
+	http.HandleFunc("/GetAvailableType/2", GetAvailableType) // 设置访问的路由
 	//http.HandleFunc("/GetConfig", GetConfig)      // 设置访问的路由
 
 	// 静态资源
